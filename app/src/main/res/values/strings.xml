@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">Uber</string>
     <string name="title_activity_maps">Map</string>
+    <string name="title_activity_login">Entrar com uma conta</string>
+    <string name="title_activity_cadastro">Cadastrar uma conta</string>
+    <string name="cadastrar">Cadastrar</string>
+    <string name="entrar">Entrar</string>
 </resources>
