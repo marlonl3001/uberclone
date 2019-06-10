@@ -12,7 +12,9 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 
-import br.com.mdr.uberclone.activity.MapsActivity;
+import br.com.mdr.uberclone.activity.CadastroActivity;
+import br.com.mdr.uberclone.activity.LoginActivity;
+import br.com.mdr.uberclone.activity.PassageiroActivity;
 import br.com.mdr.uberclone.activity.RequisicoesActivity;
 import br.com.mdr.uberclone.model.Usuario;
 
@@ -31,16 +33,25 @@ public class UsuarioFirebase {
         return auth.getCurrentUser();
     }
 
+    public static Usuario getUsuarioLogado() {
+        FirebaseUser firebaseUser = getUsuarioAtual();
+        Usuario usuario = new Usuario();
+        usuario.setId(firebaseUser.getUid());
+        usuario.setEmail(firebaseUser.getEmail());
+        usuario.setNome(firebaseUser.getDisplayName());
+        return usuario;
+    }
+
     public static void logOff() {
         FirebaseAuth auth = ConfiguracaoFirebase.getFirebaseAutenticacao();
         auth.signOut();
     }
 
-    public static boolean atualizarTipoUsuario(String tipo) {
+    public static boolean atualizarTipoUsuario(String nome) {
         try {
             FirebaseUser user = getUsuarioAtual();
             UserProfileChangeRequest profile = new UserProfileChangeRequest.Builder()
-                    .setDisplayName(tipo)
+                    .setDisplayName(nome)
                     .build();
             user.updateProfile(profile);
             return true;
@@ -63,14 +74,16 @@ public class UsuarioFirebase {
                 public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                     Usuario usuario = dataSnapshot.getValue(Usuario.class);
                     Intent i;
-                    if (usuario.getTipo().equals("P"))
-                        i = new Intent(activity, MapsActivity.class);
-                    else
-                        i = new Intent(activity, RequisicoesActivity.class);
+                    if (usuario != null) {
+                        if (usuario.getTipo().equals("P"))
+                            i = new Intent(activity, PassageiroActivity.class);
+                        else
+                            i = new Intent(activity, RequisicoesActivity.class);
 
-                    i.putExtra("usuario", usuario);
-                    activity.startActivity(i);
-                    activity.finish();
+                        i.putExtra("usuario", usuario);
+                        activity.startActivity(i);
+                        activity.finish();
+                    }
                 }
 
                 @Override

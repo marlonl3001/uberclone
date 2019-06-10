@@ -8,7 +8,7 @@ import java.io.Serializable;
 import br.com.mdr.uberclone.helper.ConfiguracaoFirebase;
 
 /**
- * Created by ${USER_NAME} on 26/04/2019.
+ * Created by Marlon D. Rocha on 26/04/2019.
  */
 public class Usuario implements Serializable {
     private String id;
@@ -16,6 +16,8 @@ public class Usuario implements Serializable {
     private String email;
     private String senha;
     private String tipo;
+    private String latitude;
+    private String longitude;
 
     public void salvar() {
         DatabaseReference ref = ConfiguracaoFirebase.getFirebase()
@@ -63,5 +65,21 @@ public class Usuario implements Serializable {
 
     public void setTipo(String tipo) {
         this.tipo = tipo;
+    }
+
+    public String getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(String latitude) {
+        this.latitude = latitude;
+    }
+
+    public String getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(String longitude) {
+        this.longitude = longitude;
     }
 }

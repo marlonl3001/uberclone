@@ -5,4 +5,6 @@
     <string name="title_activity_cadastro">Cadastrar uma conta</string>
     <string name="cadastrar">Cadastrar</string>
     <string name="entrar">Entrar</string>
+    <string name="title_activity_passageiro">PassageiroActivity</string>
+    <string name="title_activity_corrida">CorridaActivity</string>
 </resources>

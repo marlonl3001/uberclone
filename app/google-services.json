@@ -13,33 +13,15 @@
           "package_name": "br.com.mdr.uberclone"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "196541060495-o77roerq8roltpc697f4amolq9bi97a8.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "br.com.mdr.uberclone",
-            "certificate_hash": "cc2963278985ee7c19936854268ac78259370619"
-          }
-        },
-        {
-          "client_id": "196541060495-7g057a9618n0gu36rk4b04hjma0n4os3.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDMNaEAy5bvh8xIN-9I6N62-sxrXtHM9kY"
+          "current_key": "AIzaSyDycJMvtQgNb_j0uDbnlcwZPGpVgab_87Y"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "196541060495-7g057a9618n0gu36rk4b04hjma0n4os3.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

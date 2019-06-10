@@ -32,10 +32,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_main);
         getSupportActionBar().hide();
 
-
         //Valida as permissões
         Permissoes.validarPermissoes(permissoes, this, 0);
-
 
         btnLogin = findViewById(R.id.btnLogin);
         btnLogin.setOnClickListener(this);

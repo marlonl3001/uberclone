@@ -71,13 +71,13 @@ public class CadastroActivity extends AppCompatActivity {
                             String idUsuario = task.getResult().getUser().getUid();
                             usuario.setId(idUsuario);
                             usuario.salvar();
-                            UsuarioFirebase.atualizarTipoUsuario(getTipoUsuario());
+                            UsuarioFirebase.atualizarTipoUsuario(usuario.getNome());
 
                             mostraMensagem("Sua conta foi criada com sucesso!");
                             Intent i;
 
                             if (usuario.getTipo().equals("P"))
-                                i = new Intent(CadastroActivity.this, MapsActivity.class);
+                                i = new Intent(CadastroActivity.this, PassageiroActivity.class);
                             else
                                 i = new Intent(CadastroActivity.this, RequisicoesActivity.class);
 
