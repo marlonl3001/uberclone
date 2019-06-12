@@ -5,15 +5,12 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Handler;
-import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -26,16 +23,15 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
-import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
-import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
@@ -45,6 +41,7 @@ import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -52,24 +49,34 @@ import java.util.Locale;
 
 import br.com.mdr.uberclone.R;
 import br.com.mdr.uberclone.helper.ConfiguracaoFirebase;
+import br.com.mdr.uberclone.helper.Local;
 import br.com.mdr.uberclone.helper.UsuarioFirebase;
+import br.com.mdr.uberclone.helper.Utils;
 import br.com.mdr.uberclone.model.Destino;
 import br.com.mdr.uberclone.model.Requisicao;
 import br.com.mdr.uberclone.model.Usuario;
 
 public class PassageiroActivity extends AppCompatActivity implements OnMapReadyCallback {
     private EditText edtDestino;
-    private GoogleMap mMap;
-    private LocationManager locationManager;
-    private LocationListener locationListener;
-    private LatLng localizacao;
     private LinearLayout layoutDestino;
     private Button btnChamada;
-    private boolean corridaRequisitada = false;
-    private Requisicao requisicaoAtual;
-    private Circle circle;
-    private MarkerOptions userMarker, riderMarker, destinyMarker;
-    private LatLngBounds.Builder bounds;
+
+    private GoogleMap mMap;
+    private FirebaseAuth autenticacao;
+    private LocationManager locationManager;
+    private LocationListener locationListener;
+    private LatLng localPassageiro;
+    private boolean cancelarUber = false;
+    private DatabaseReference firebaseRef;
+    private Requisicao requisicao;
+    private Usuario passageiro;
+    private String statusRequisicao;
+    private Destino destino;
+    private Marker marcadorMotorista;
+    private Marker marcadorPassageiro;
+    private Marker marcadorDestino;
+    private Usuario motorista;
+    private LatLng localMotorista;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,320 +84,418 @@ public class PassageiroActivity extends AppCompatActivity implements OnMapReadyC
         setContentView(R.layout.activity_passageiro);
 
         iniciaComponentes();
-    }
-
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
-        mMap.setPadding(convertDpToPx(32), convertDpToPx(70), convertDpToPx(32), convertDpToPx(95));
-        mMap.clear();
-        recuperaLocalizacaoUsuario();
         verificaStatusRequisicao();
     }
 
-    private void verificaStatusRequisicao() {
-        Usuario usuario = UsuarioFirebase.getUsuarioLogado();
-        DatabaseReference firebaseRef = ConfiguracaoFirebase.getFirebase()
-                .child("requisicoes");
-        Query qry = firebaseRef.orderByChild("passageiro/id")
-                .equalTo(usuario.getId());
-        qry.addValueEventListener(new ValueEventListener() {
+    private void verificaStatusRequisicao(){
+
+        Usuario usuarioLogado = UsuarioFirebase.getUsuarioLogado();
+        DatabaseReference requisicoes = firebaseRef.child("requisicoes");
+        Query requisicaoPesquisa = requisicoes.orderByChild("passageiro/id")
+                .equalTo( usuarioLogado.getId() );
+
+        requisicaoPesquisa.addValueEventListener(new ValueEventListener() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                List<Requisicao> requisicoes = new ArrayList<>();
-                for(DataSnapshot ds: dataSnapshot.getChildren()) {
-                    requisicoes.add(ds.getValue(Requisicao.class));
+            public void onDataChange(DataSnapshot dataSnapshot) {
+
+                List<Requisicao> lista = new ArrayList<>();
+                for( DataSnapshot ds: dataSnapshot.getChildren() ){
+                    lista.add( ds.getValue( Requisicao.class ) );
                 }
-                Collections.reverse(requisicoes);
-                if (requisicoes.size() > 0) {
-                    requisicaoAtual = requisicoes.get(0);
-                    switch (requisicaoAtual.getStatus()) {
-                        case Requisicao.STATUS_AGUARDANDO: {
-                            layoutDestino.setVisibility(View.GONE);
-                            btnChamada.setText("Cancelar Chamada");
-                            corridaRequisitada = true;
 
-                            break;
-                        }
-                        case Requisicao.STATUS_CAMINHO: {
-                            layoutDestino.setVisibility(View.GONE);
-                            btnChamada.setText("Cancelar Chamada");
+                Collections.reverse(lista);
+                if( lista!= null && lista.size()>0 ){
+                    requisicao = lista.get(0);
 
-//                            if (bounds == null)
-//                                bounds = new LatLngBounds.Builder();
-//
-//                            LatLng userLoc = new LatLng(
-//                                    Double.parseDouble(requisicaoAtual.getPassageiro().getLatitude()),
-//                                    Double.parseDouble(requisicaoAtual.getPassageiro().getLongitude())
-//                            );
-//
-//                            if (circle == null) {
-//                                circle = mMap.addCircle(
-//                                        new CircleOptions()
-//                                                .center(userLoc)
-//                                                .strokeWidth(2F)
-//                                                .strokeColor(Color.parseColor("#CC3F9DE9"))
-//                                                .fillColor(Color.parseColor("#663F9DE9"))
-//                                                .radius(0.0));
-//                            }
-//
-//                            if (userMarker == null) {
-//                                userMarker = new MarkerOptions()
-//                                        .position(userLoc)
-//                                        .title(requisicaoAtual.getDestino().getRua())
-//                                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_my_loation));
-//                                mMap.addMarker(userMarker);
-//                                bounds.include(userLoc);
-//                                circle.setCenter(userLoc);
-//                            }
-//
-//                            LatLng motLoc = new LatLng(
-//                                    Double.parseDouble(requisicaoAtual.getMotorista().getLatitude()),
-//                                    Double.parseDouble(requisicaoAtual.getMotorista().getLongitude())
-//                            );
-//                            if (riderMarker == null) {
-//                                riderMarker = new MarkerOptions()
-//                                        .position(motLoc)
-//                                        .title(requisicaoAtual.getMotorista().getNome())
-//                                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_car));
-//                                mMap.addMarker(riderMarker);
-//                                bounds.include(motLoc);
-//                                circle.setCenter(motLoc);
-//                            }
-//                            riderMarker.position(motLoc);
-//                            animateCameraPosition();
-                            break;
+                    if(requisicao != null){
+                        if( !requisicao.getStatus().equals(Requisicao.STATUS_ENCERRADA) ) {
+                            passageiro = requisicao.getPassageiro();
+                            localPassageiro = new LatLng(
+                                    Double.parseDouble(passageiro.getLatitude()),
+                                    Double.parseDouble(passageiro.getLongitude())
+                            );
+                            statusRequisicao = requisicao.getStatus();
+                            destino = requisicao.getDestino();
+                            if (requisicao.getMotorista() != null) {
+                                motorista = requisicao.getMotorista();
+                                localMotorista = new LatLng(
+                                        Double.parseDouble(motorista.getLatitude()),
+                                        Double.parseDouble(motorista.getLongitude())
+                                );
+                            }
+                            alteraInterfaceStatusRequisicao(statusRequisicao);
                         }
                     }
-                    mostraCorridaNoMapa(requisicaoAtual);
+
                 }
+
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
+            public void onCancelled(DatabaseError databaseError) {
 
             }
         });
+
     }
 
-    private void mostraCorridaNoMapa(Requisicao requisicao) {
-        mMap.clear();
-        LatLng destLoc = new LatLng(
-                Double.parseDouble(requisicao.getDestino().getLatitude()),
-                Double.parseDouble(requisicao.getDestino().getLongitude()));
+    private void alteraInterfaceStatusRequisicao(String status){
 
-        localizacao = new LatLng(Double.parseDouble(requisicao.getPassageiro().getLatitude()),
-                Double.parseDouble(requisicao.getPassageiro().getLongitude()));
-
-        circle = mMap.addCircle(
-                new CircleOptions()
-                        .center(localizacao)
-                        .strokeWidth(2F)
-                        .strokeColor(Color.parseColor("#CC3F9DE9"))
-                        .fillColor(Color.parseColor("#663F9DE9"))
-                        .radius(0.0));
-        circle.setCenter(localizacao);
-
-        //if (userMarker == null) {
-            userMarker = new MarkerOptions()
-                    .position(localizacao)
-                    .title(requisicao.getDestino().getRua())
-                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_my_loation));
-            mMap.addMarker(userMarker);
-        //}
-        userMarker.position(localizacao);
-
-        //if (destinyMarker == null) {
-            destinyMarker = new MarkerOptions()
-                    .position(destLoc)
-                    .title(requisicao.getDestino().getRua())
-                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_destiny));
-            mMap.addMarker(destinyMarker);
-        //}
-        destinyMarker.position(destLoc);
-
-        circle.setCenter(destLoc);
-
-        //if (bounds == null) {
-            bounds = new LatLngBounds.Builder();
-            bounds.include(localizacao).include(destLoc);
-        //}
-
-        if (requisicao.getMotorista() != null) {
-            Usuario motorista = requisicaoAtual.getMotorista();
-            LatLng motLoc = new LatLng(Double.parseDouble(motorista.getLatitude()),
-                    Double.parseDouble(motorista.getLongitude()));
-            //Adiciona o carrinho do motorista no mapa
-            //if (riderMarker == null) {
-                riderMarker = new MarkerOptions()
-                        .position(motLoc)
-                        .title(motorista.getNome())
-                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_car));
-                mMap.addMarker(riderMarker);
-                bounds.include(motLoc);
-            //}
-            riderMarker.position(motLoc);
-            circle.setCenter(motLoc);
-        }
-
-        animateCameraPosition();
-        //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.build().getCenter(), 13));
-    }
-
-    private void animateCameraPosition() {
-        int height = getResources().getDisplayMetrics().heightPixels;
-        int width = getResources().getDisplayMetrics().widthPixels;
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds.build(),
-                width, height, 17);
-
-        mMap.animateCamera(cameraUpdate, new GoogleMap.CancelableCallback() {
-            @Override
-            public void onFinish() {
-                final float zoom = getZoomLevel(circle);
-                float currentZoom = mMap.getCameraPosition().zoom;
-                if (currentZoom > zoom && zoom != 0) {
-                    Handler handler = new Handler();
-                    handler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            mMap.animateCamera(CameraUpdateFactory.zoomTo(zoom));
-                        }
-                    }, 100);
-                }
-            }
-
-            @Override
-            public void onCancel() {
+        if(status != null && !status.isEmpty()) {
+            cancelarUber = false;
+            switch (status) {
+                case Requisicao.STATUS_AGUARDANDO:
+                    requisicaoAguardando();
+                    break;
+                case Requisicao.STATUS_A_CAMINHO:
+                    requisicaoACaminho();
+                    break;
+                case Requisicao.STATUS_VIAGEM:
+                    requisicaoViagem();
+                    break;
+                case Requisicao.STATUS_FINALIZADA:
+                    requisicaoFinalizada();
+                    break;
+                case Requisicao.STATUS_CANCELADA:
+                    requisicaoCancelada();
+                    break;
 
             }
-        });
-    }
-
-    private Float getZoomLevel(Circle circle) {
-        int zoomLevel = 0;
-        if (circle != null) {
-            double radius = circle.getRadius();
-            double scale = radius / 500;
-
-            if (radius == 0f)
-                return 0f;
-
-            zoomLevel = (int)(16 - Math.log(scale) / Math.log(2.0));
+        }else {
+            //Adiciona marcador passageiro
+            adicionaMarcadorPassageiro(localPassageiro, "Seu local");
+            centralizarMarcador(localPassageiro);
         }
 
-        return zoomLevel - .5f;
     }
 
-    public void chamaCorrida(View v) {
-        if (!corridaRequisitada) {
-            final String destino = edtDestino.getText().toString();
-            if (!destino.isEmpty() || destino != null) {
-                Address enderecoDestino = recuperaDestino(destino);
+    private void requisicaoCancelada(){
 
-                if (enderecoDestino != null) {
-                    final Destino lDestino = new Destino();
-                    lDestino.setCidade(enderecoDestino.getSubAdminArea());
-                    lDestino.setCep(enderecoDestino.getPostalCode());
-                    lDestino.setBairro(enderecoDestino.getSubLocality());
-                    lDestino.setRua(enderecoDestino.getThoroughfare());
-                    lDestino.setNumero(enderecoDestino.getFeatureName());
-                    lDestino.setLatitude(String.valueOf(enderecoDestino.getLatitude()));
-                    lDestino.setLongitude(String.valueOf(enderecoDestino.getLongitude()));
+        layoutDestino.setVisibility( View.VISIBLE );
+        btnChamada.setText("Chamar Uber");
+        cancelarUber = false;
 
-                    //Concatena um array de string para criar apenas um ao final
+    }
+
+    private void requisicaoAguardando(){
+
+        layoutDestino.setVisibility( View.GONE );
+        btnChamada.setText("Cancelar Uber");
+        cancelarUber = true;
+
+        //Adiciona marcador passageiro
+        adicionaMarcadorPassageiro(localPassageiro, passageiro.getNome());
+        centralizarMarcador(localPassageiro);
+
+    }
+
+    private void requisicaoACaminho(){
+
+        layoutDestino.setVisibility( View.GONE );
+        btnChamada.setText("Motorista a caminho");
+        btnChamada.setEnabled(false);
+
+        //Adiciona marcador passageiro
+        adicionaMarcadorPassageiro(localPassageiro, passageiro.getNome());
+
+        //Adiciona marcador motorista
+        adicionaMarcadorMotorista(localMotorista, motorista.getNome());
+
+        //Centralizar passageiro / motorista
+        centralizarDoisMarcadores(marcadorMotorista, marcadorPassageiro);
+
+    }
+
+    private void requisicaoViagem(){
+
+        layoutDestino.setVisibility( View.GONE );
+        btnChamada.setText("A caminho do destino");
+        btnChamada.setEnabled(false);
+
+        //Adiciona marcador motorista
+        adicionaMarcadorMotorista(localMotorista, motorista.getNome());
+
+        //Adiciona marcador de destino
+        LatLng localDestino = new LatLng(
+                Double.parseDouble(destino.getLatitude()),
+                Double.parseDouble(destino.getLongitude())
+        );
+        adicionaMarcadorDestino(localDestino, "Destino");
+
+        //Centraliza marcadores motorista / destino
+        centralizarDoisMarcadores(marcadorMotorista, marcadorDestino);
+
+    }
+
+    private void requisicaoFinalizada(){
+
+        layoutDestino.setVisibility( View.GONE );
+        btnChamada.setEnabled(false);
+
+        //Adiciona marcador de destino
+        LatLng localDestino = new LatLng(
+                Double.parseDouble(destino.getLatitude()),
+                Double.parseDouble(destino.getLongitude())
+        );
+        adicionaMarcadorDestino(localDestino, "Destino");
+        centralizarMarcador(localDestino);
+
+        //Calcular distancia
+        float distancia = Local.calcularDistancia(localPassageiro, localDestino);
+        float valor = distancia * 8;
+        DecimalFormat decimal = new DecimalFormat("0.00");
+        String resultado = decimal.format(valor);
+
+        btnChamada.setText("Corrida finalizada - R$ " + resultado);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("Total da viagem")
+                .setMessage("Sua viagem ficou: R$ " + resultado)
+                .setCancelable(false)
+                .setNegativeButton("Encerrar viagem", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+
+                        requisicao.setStatus(Requisicao.STATUS_ENCERRADA);
+                        requisicao.atualizarStatus();
+
+                        finish();
+                        startActivity(new Intent(getIntent()));
+
+                    }
+                });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+    }
+
+    private void adicionaMarcadorPassageiro(LatLng localizacao, String titulo){
+
+        if( marcadorPassageiro != null )
+            marcadorPassageiro.remove();
+
+        marcadorPassageiro = mMap.addMarker(
+                new MarkerOptions()
+                        .position(localizacao)
+                        .title(titulo)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_my_loation))
+        );
+
+    }
+
+    private void adicionaMarcadorMotorista(LatLng localizacao, String titulo){
+
+        if( marcadorMotorista != null )
+            marcadorMotorista.remove();
+
+        marcadorMotorista = mMap.addMarker(
+                new MarkerOptions()
+                        .position(localizacao)
+                        .title(titulo)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_car))
+        );
+
+    }
+
+    private void adicionaMarcadorDestino(LatLng localizacao, String titulo){
+
+        if( marcadorPassageiro != null )
+            marcadorPassageiro.remove();
+
+        if( marcadorDestino != null )
+            marcadorDestino.remove();
+
+        marcadorDestino = mMap.addMarker(
+                new MarkerOptions()
+                        .position(localizacao)
+                        .title(titulo)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_destiny))
+        );
+
+    }
+
+    private void centralizarMarcador(LatLng local){
+        mMap.moveCamera(
+                CameraUpdateFactory.newLatLngZoom(local, 20)
+        );
+    }
+
+    private void centralizarDoisMarcadores(Marker marcador1, Marker marcador2){
+
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+
+        builder.include( marcador1.getPosition() );
+        builder.include( marcador2.getPosition() );
+
+        LatLngBounds bounds = builder.build();
+
+        int largura = getResources().getDisplayMetrics().widthPixels;
+        int altura = getResources().getDisplayMetrics().heightPixels;
+        int espacoInterno = (int) (largura * 0.20);
+
+        mMap.moveCamera(
+                CameraUpdateFactory.newLatLngBounds(bounds,largura,altura,espacoInterno)
+        );
+
+    }
+
+    /**
+     * Manipulates the map once available.
+     * This callback is triggered when the map is ready to be used.
+     * This is where we can add markers or lines, add listeners or move the camera. In this case,
+     * we just add a marker near Sydney, Australia.
+     * If Google Play services is not installed on the device, the user will be prompted to install
+     * it inside the SupportMapFragment. This method will only be triggered once the user has
+     * installed Google Play services and returned to the app.
+     */
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mMap = googleMap;
+        mMap.setPadding(0, 0, 0, Utils.convertDpToPx(60, this));
+        //Recuperar localizacao do usuário
+        recuperarLocalizacaoUsuario();
+
+    }
+
+    public void chamaCorrida(View view){
+
+        //false -> uber não pode ser cancelado ainda
+        //true -> uber pode ser cancelado
+        if( cancelarUber ){//Uber pode ser cancelado
+
+            //Cancelar a requisição
+            requisicao.setStatus(Requisicao.STATUS_CANCELADA);
+            requisicao.atualizarStatus();
+
+        }else {
+
+            String enderecoDestino = edtDestino.getText().toString();
+
+            if( !enderecoDestino.equals("") || enderecoDestino != null ){
+
+                Address addressDestino = recuperarEndereco( enderecoDestino );
+                if( addressDestino != null ){
+
+                    final Destino destino = new Destino();
+                    destino.setCidade( addressDestino.getAdminArea() );
+                    destino.setCep( addressDestino.getPostalCode() );
+                    destino.setBairro( addressDestino.getSubLocality() );
+                    destino.setRua( addressDestino.getThoroughfare() );
+                    destino.setNumero( addressDestino.getFeatureName() );
+                    destino.setLatitude( String.valueOf(addressDestino.getLatitude()) );
+                    destino.setLongitude( String.valueOf(addressDestino.getLongitude()) );
+
                     StringBuilder mensagem = new StringBuilder();
-                    mensagem.append("Endereço: " + lDestino.getRua());
-                    mensagem.append("\nBairro: " + lDestino.getBairro());
-                    mensagem.append("\nNúmero: " + lDestino.getNumero());
-                    mensagem.append("\nCep: " + lDestino.getCep());
-                    mensagem.append("\nCidade: " + lDestino.getCidade());
+                    mensagem.append( "Cidade: " + destino.getCidade() );
+                    mensagem.append( "\nRua: " + destino.getRua() );
+                    mensagem.append( "\nBairro: " + destino.getBairro() );
+                    mensagem.append( "\nNúmero: " + destino.getNumero() );
+                    mensagem.append( "\nCep: " + destino.getCep() );
 
                     AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                            .setTitle("Confirme seu endereço")
+                            .setTitle("Confirme seu endereco!")
                             .setMessage(mensagem)
                             .setPositiveButton("Confirmar", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    salvaRequisicao(lDestino);
+
+                                    //salvar requisição
+                                    salvarRequisicao( destino );
+
                                 }
-                            }).setNegativeButton("Cancelar", new DialogInterface.OnClickListener() {
+                            }).setNegativeButton("cancelar", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    dialog.dismiss();
+
                                 }
                             });
-                    builder.show();
+                    AlertDialog dialog = builder.create();
+                    dialog.show();
+
                 }
-            } else {
-                Toast.makeText(this, "Informe o endereço de destino.",
+
+            }else {
+                Toast.makeText(this,
+                        "Informe o endereço de destino!",
                         Toast.LENGTH_SHORT).show();
             }
-        } else {
-            //Cancelar Requisição
 
         }
+
     }
 
-    private void salvaRequisicao(Destino destino) {
-        Requisicao requisicao = new Requisicao();
-        requisicao.setDestino(destino);
+    private void salvarRequisicao(Destino destino){
 
-        Usuario passageiro = UsuarioFirebase.getUsuarioLogado();
-        passageiro.setLatitude(String.valueOf(localizacao.latitude));
-        passageiro.setLongitude(String.valueOf(localizacao.longitude));
-        requisicao.setPassageiro(passageiro);
-        requisicao.setStatus(Requisicao.STATUS_AGUARDANDO);
+        Requisicao requisicao = new Requisicao();
+        requisicao.setDestino( destino );
+
+        Usuario usuarioPassageiro = UsuarioFirebase.getUsuarioLogado();
+        usuarioPassageiro.setLatitude( String.valueOf( localPassageiro.latitude ) );
+        usuarioPassageiro.setLongitude( String.valueOf( localPassageiro.longitude ) );
+
+        requisicao.setPassageiro( usuarioPassageiro );
+        requisicao.setStatus( Requisicao.STATUS_AGUARDANDO );
         requisicao.salvar();
 
-        layoutDestino.setVisibility(View.GONE);
+        layoutDestino.setVisibility( View.GONE );
         btnChamada.setText("Cancelar Uber");
-        corridaRequisitada = true;
 
-        //Adiciona um marcador no destino e centraliza a camera mostrando
-        // o local do usuário e seu destino
-        LatLng locDestino = new LatLng(Double.parseDouble(destino.getLatitude()),
-                Double.parseDouble(destino.getLongitude()));
-        MarkerOptions markerDestino = new MarkerOptions()
-                .position(locDestino)
-                .title(edtDestino.getText().toString())
-                .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_destiny));
-        mMap.addMarker(markerDestino);
-        LatLngBounds.Builder bounds = new LatLngBounds.Builder();
-        bounds.include(localizacao).include(locDestino);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.build().getCenter(), 16));
     }
 
-    private Address recuperaDestino(String enderecoDestino) {
+    private Address recuperarEndereco(String endereco){
+
         Geocoder geocoder = new Geocoder(this, Locale.getDefault());
         try {
-            List<Address> enderecos = geocoder.getFromLocationName(enderecoDestino, 1);
-            if (enderecos != null && enderecos.size() > 0)
-                return enderecos.get(0);
+            List<Address> listaEnderecos = geocoder.getFromLocationName(endereco, 1);
+            if( listaEnderecos != null && listaEnderecos.size() > 0 ){
+                Address address = listaEnderecos.get(0);
 
-        } catch(IOException e) {
+                return address;
+
+            }
+
+        } catch (IOException e) {
             e.printStackTrace();
         }
+
         return null;
+
     }
 
-    private void recuperaLocalizacaoUsuario() {
+    private void recuperarLocalizacaoUsuario() {
+
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+
         locationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
-                if (!corridaRequisitada) {
-                    Double lat = location.getLatitude();
-                    Double lon = location.getLongitude();
-                    localizacao = new LatLng(lat, lon);
 
-                    mMap.clear();
-                    mMap.addMarker(
-                            new MarkerOptions()
-                                    .position(localizacao)
-                                    .title("Meu Local")
-                                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_my_loation))
-                    );
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(localizacao, 16));
+                //recuperar latitude e longitude
+                double latitude = location.getLatitude();
+                double longitude = location.getLongitude();
+                localPassageiro = new LatLng(latitude, longitude);
+
+                //Atualizar GeoFire
+                UsuarioFirebase.atualizaLocalizacao(latitude, longitude);
+
+                //Altera interface de acordo com o status
+                alteraInterfaceStatusRequisicao( statusRequisicao );
+
+                if(statusRequisicao != null && !statusRequisicao.isEmpty()) {
+                    if (statusRequisicao.equals(Requisicao.STATUS_VIAGEM)
+                            || statusRequisicao.equals(Requisicao.STATUS_FINALIZADA)) {
+                        locationManager.removeUpdates(locationListener);
+                    }else {
+                        //Solicitar atualizações de localização
+                        if (ActivityCompat.checkSelfPermission(PassageiroActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ) {
+                            locationManager.requestLocationUpdates(
+                                    LocationManager.GPS_PROVIDER,
+                                    10000,
+                                    10,
+                                    locationListener
+                            );
+                        }
+                    }
                 }
 
             }
@@ -410,8 +515,9 @@ public class PassageiroActivity extends AppCompatActivity implements OnMapReadyC
 
             }
         };
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED) {
+
+        //Solicitar atualizações de localização
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ) {
             locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
                     10000,
@@ -419,6 +525,8 @@ public class PassageiroActivity extends AppCompatActivity implements OnMapReadyC
                     locationListener
             );
         }
+
+
     }
 
     @Override
@@ -429,34 +537,36 @@ public class PassageiroActivity extends AppCompatActivity implements OnMapReadyC
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.item_sair: {
-                FirebaseAuth auth = ConfiguracaoFirebase.getFirebaseAutenticacao();
-                auth.signOut();
-                startActivity(new Intent(this, LoginActivity.class));
+
+        switch (item.getItemId()){
+            case R.id.item_sair :
+                autenticacao.signOut();
+                finish();
                 break;
-            }
         }
+
         return super.onOptionsItemSelected(item);
     }
 
-    private void iniciaComponentes() {
-        Toolbar toolbar = findViewById(R.id.toolbar);
+    private void iniciaComponentes(){
+
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setTitle("Iniciar uma viagem");
         setSupportActionBar(toolbar);
 
+        //Inicializar componentes
         edtDestino = findViewById(R.id.edtDestino);
         layoutDestino = findViewById(R.id.layoutDestino);
-        layoutDestino.setVisibility(View.VISIBLE);
         btnChamada = findViewById(R.id.btnChamaCorrida);
 
+        //Configurações iniciais
+        autenticacao = ConfiguracaoFirebase.getFirebaseAutenticacao();
+        firebaseRef = ConfiguracaoFirebase.getFirebase();
+
+        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-    }
 
-    private int convertDpToPx(int dp) {
-        float scale = getApplicationContext().getResources().getDisplayMetrics().density;
-        return (int)(dp * scale + 0.5f);
     }
 }

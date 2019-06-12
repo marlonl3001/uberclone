@@ -12,6 +12,7 @@ import br.com.mdr.uberclone.helper.ConfiguracaoFirebase;
  * Created by Marlon D. Rocha on 30/04/2019.
  */
 public class Requisicao implements Serializable {
+
     private String id;
     private String status;
     private Usuario passageiro;
@@ -19,29 +20,74 @@ public class Requisicao implements Serializable {
     private Destino destino;
 
     public static final String STATUS_AGUARDANDO = "Aguardando";
-    public static final String STATUS_CAMINHO = "A caminho";
-    public static final String STATUS_VIAGEM_INICIO = "Viagem Iniciada";
-    public static final String STATUS_VIAGEM_FIM = "Viagem Finalizada";
+    public static final String STATUS_A_CAMINHO = "A caminho";
+    public static final String STATUS_VIAGEM = "Viagem";
+    public static final String STATUS_FINALIZADA = "Finalizada";
+    public static final String STATUS_ENCERRADA = "Encerrada";
+    public static final String STATUS_CANCELADA = "Cancelada";
 
-    public void salvar() {
-        DatabaseReference ref = ConfiguracaoFirebase.getFirebase()
-                .child("requisicoes");
-        String reqId = ref.push().getKey();
-        setId(reqId);
-        ref.child(reqId).setValue(this);
+    public Requisicao() {
     }
 
-    public void atualizar() {
-        DatabaseReference ref = ConfiguracaoFirebase.getFirebase()
-                .child("requisicoes").child(getId());
+    public void salvar(){
 
-        //Atualiza apenas as propriedades "motorista" e "status" da requisição
+        DatabaseReference firebaseRef = ConfiguracaoFirebase.getFirebase();
+        DatabaseReference requisicoes = firebaseRef.child("requisicoes");
+
+        String idRequisicao = requisicoes.push().getKey();
+        setId( idRequisicao );
+
+        requisicoes.child( getId() ).setValue(this);
+
+    }
+
+    public void atualizar(){
+
+        DatabaseReference firebaseRef = ConfiguracaoFirebase.getFirebase();
+        DatabaseReference requisicoes = firebaseRef.child("requisicoes");
+
+        DatabaseReference requisicao = requisicoes.child(getId());
+
         Map objeto = new HashMap();
-        objeto.put("motorista", getMotorista());
+        objeto.put("motorista", getMotorista() );
         objeto.put("status", getStatus());
 
-        ref.updateChildren(objeto);
+        requisicao.updateChildren( objeto );
+
     }
+
+    public void atualizarStatus(){
+
+        DatabaseReference firebaseRef = ConfiguracaoFirebase.getFirebase();
+        DatabaseReference requisicoes = firebaseRef.child("requisicoes");
+
+        DatabaseReference requisicao = requisicoes.child(getId());
+
+        Map objeto = new HashMap();
+        objeto.put("status", getStatus());
+
+        requisicao.updateChildren( objeto );
+
+    }
+
+    public void atualizarLocalizacaoMotorista(){
+
+        DatabaseReference firebaseRef = ConfiguracaoFirebase.getFirebase();
+        DatabaseReference requisicoes = firebaseRef
+                .child("requisicoes");
+
+        DatabaseReference requisicao = requisicoes
+                .child(getId())
+                .child("motorista");
+
+        Map objeto = new HashMap();
+        objeto.put("latitude", getMotorista().getLatitude() );
+        objeto.put("longitude", getMotorista().getLongitude());
+
+        requisicao.updateChildren( objeto );
+
+    }
+
 
     public String getId() {
         return id;

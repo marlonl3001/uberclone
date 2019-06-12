@@ -3,7 +3,10 @@ package br.com.mdr.uberclone.helper;
 import android.app.Activity;
 import android.content.Intent;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
+import com.firebase.geofire.GeoFire;
+import com.firebase.geofire.GeoLocation;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
@@ -62,6 +65,24 @@ public class UsuarioFirebase {
 
     }
 
+    public static void atualizaLocalizacao (double lat, double lon) {
+        DatabaseReference ref = ConfiguracaoFirebase.getFirebase()
+                .child("local_usuario");
+        GeoFire geoFire = new GeoFire(ref);
+        Usuario usuario = getUsuarioLogado();
+        geoFire.setLocation(
+                usuario.getId(),
+                new GeoLocation(lat, lon),
+                new GeoFire.CompletionListener() {
+                    @Override
+                    public void onComplete(String key, DatabaseError error) {
+                        if (error != null) {
+                            Log.e("App", "onComplete: " + error.getMessage());
+                        }
+                    }
+                });
+    }
+
     public static void redirecionaUsuarioLogado(final Activity activity) {
         FirebaseUser user = getUsuarioAtual();
         if (user != null) {
@@ -93,4 +114,6 @@ public class UsuarioFirebase {
             });
         }
     }
+
+
 }

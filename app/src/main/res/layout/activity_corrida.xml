@@ -33,4 +33,17 @@
         android:theme="@style/botaoPadrao"
         android:onClick="aceitarCorrida"/>
 
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/fabRota"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginRight="@dimen/fab_margin"
+        android:layout_marginEnd="@dimen/fab_margin"
+        android:layout_marginBottom="66dp"
+        android:layout_gravity="bottom|end"
+        android:visibility="gone"
+        tools:visibility="visible"
+        app:backgroundTint="@android:color/holo_orange_dark"
+        app:srcCompat="@drawable/rota"/>
+
 </android.support.design.widget.CoordinatorLayout>

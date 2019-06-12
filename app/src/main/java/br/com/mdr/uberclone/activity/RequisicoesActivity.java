@@ -102,11 +102,11 @@ public class RequisicoesActivity extends AppCompatActivity {
         recuperaLocalizacaoUsuario();
     }
 
-    private void abreRequisicao (Requisicao requisicao, boolean corridaIniciada) {
+    private void abreRequisicao (Requisicao requisicao, boolean requisicaoAtiva) {
         Intent i = new Intent(RequisicoesActivity.this, CorridaActivity.class);
-        i.putExtra("requisicao", requisicao);
+        i.putExtra("idRequisicao", requisicao.getId());
         i.putExtra("motorista", motorista);
-        i.putExtra("corridaIniciada", corridaIniciada);
+        i.putExtra("requisicaoAtiva", requisicaoAtiva);
         startActivity(i);
     }
 
@@ -117,6 +117,9 @@ public class RequisicoesActivity extends AppCompatActivity {
             public void onLocationChanged(Location location) {
                 Double lat = location.getLatitude();
                 Double lon = location.getLongitude();
+
+                //Atualiza Localização do Geofire
+                UsuarioFirebase.atualizaLocalizacao(lat, lon);
 
                 motorista.setLatitude(String.valueOf(lat));
                 motorista.setLongitude(String.valueOf(lon));
@@ -161,8 +164,9 @@ public class RequisicoesActivity extends AppCompatActivity {
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                 for (DataSnapshot ds: dataSnapshot.getChildren()) {
                     Requisicao requisicao = ds.getValue(Requisicao.class);
-                    if (requisicao.getStatus().equals(Requisicao.STATUS_CAMINHO) ||
-                        requisicao.getStatus().equals(Requisicao.STATUS_VIAGEM_INICIO)) {
+                    if( requisicao.getStatus().equals(Requisicao.STATUS_A_CAMINHO)
+                            || requisicao.getStatus().equals(Requisicao.STATUS_VIAGEM)
+                            || requisicao.getStatus().equals(Requisicao.STATUS_FINALIZADA)){
                         abreRequisicao(requisicao, true);
                         break;
                     }
